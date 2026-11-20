@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(FocusForge)
+project(FocusForge VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,3 +16,15 @@ qt_add_executable(FocusForge
 )
 
 target_link_libraries(FocusForge PRIVATE Qt6::Widgets)
+
+install(TARGETS FocusForge
+    RUNTIME DESTINATION bin
+)
+
+set(CPACK_PACKAGE_NAME "FocusForge")
+set(CPACK_PACKAGE_VENDOR "FocusForge Studio")
+set(CPACK_PACKAGE_VERSION "1.0.0")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "FocusForge")
+set(CPACK_GENERATOR "WIX")
+
+include(CPack)
