@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Fragment>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.FocusForge.exe" Guid="*">
+                <File Id="CM_FP_bin.FocusForge.exe" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\FocusForge.exe" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+    </Fragment>
+</Wix>

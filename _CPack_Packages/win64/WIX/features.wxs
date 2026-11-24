@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+    <Fragment>
+        <Feature Id="ProductFeature" Display="expand" AllowAbsent="no" ConfigurableDirectory="INSTALL_ROOT" Title="FocusForge" Level="1"/>
+        <FeatureRef Id="ProductFeature">
+            <ComponentRef Id="CM_CP_bin.FocusForge.exe"/>
+        </FeatureRef>
+    </Fragment>
+</Wix>
