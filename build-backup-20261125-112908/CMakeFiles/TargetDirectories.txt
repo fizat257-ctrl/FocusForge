@@ -1,0 +1,11 @@
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/FocusForge.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/package.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/package_source.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/edit_cache.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/rebuild_cache.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/list_install_components.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/install.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/install/local.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/install/strip.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/FocusForge_autogen_timestamp_deps.dir
+C:/Users/HP/OneDrive/Desktop/FocusForge/build/CMakeFiles/FocusForge_autogen.dir

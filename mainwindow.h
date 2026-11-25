@@ -2,10 +2,23 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QDateTime>
+
+#include "task.h"
+#include "taskstore.h"
+#include "subjectstore.h"
+#include "subjectsmanagerpage.h"
+#include "studysessionstore.h"
 
 class QLabel;
 class QPushButton;
 class QTimer;
+class QStackedWidget;
+class QWidget;
+class QVBoxLayout;
+class QComboBox;
+
+class StudyReportPage;
 
 class MainWindow : public QMainWindow
 {
@@ -19,12 +32,31 @@ private:
     QPushButton *pauseButton;
     QPushButton *resetButton;
 
+    QStackedWidget *pages;
+    QLabel *tasksCard;
+    QLabel *completedCard;
+    QLabel *subjectsCard;
+    QWidget *taskCardsContainer;
+    TaskStore taskStore;
+    SubjectStore subjectStore;
+    StudySessionStore studySessionStore;
+    StudyReportPage *studyReportPage;
+    QComboBox *timerSubjectCombo;
+    QComboBox *timerTaskCombo;
+
     int remainingSeconds;
+    QDateTime sessionEndTime;
+    QDateTime activeSessionStartTime;
 
     void updateTimerDisplay();
     void startTimer();
     void pauseTimer();
     void resetTimer();
+    void completeFocusSession();
+
+    void updateDashboardStats();
+    void refreshTaskCards();
+    void showTaskDialog(Task *existingTask = nullptr);
 };
 
 #endif

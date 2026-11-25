@@ -13,6 +13,19 @@ qt_add_executable(FocusForge
     main.cpp
     mainwindow.cpp
     mainwindow.h
+    task.h
+    taskstore.cpp
+    taskstore.h
+    subject.h
+    subjectstore.cpp
+    subjectstore.h
+    subjectsmanagerpage.cpp
+    subjectsmanagerpage.h
+    studysession.h
+    studysessionstore.cpp
+    studysessionstore.h
+    studyreportpage.cpp
+    studyreportpage.h
 )
 
 target_link_libraries(FocusForge PRIVATE Qt6::Widgets)
