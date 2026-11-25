@@ -2,6 +2,16 @@ cmake_minimum_required(VERSION 3.16)
 
 project(FocusForge VERSION 1.0.0)
 
+if(MINGW)
+    get_filename_component(FOCUSFORGE_MINGW_BIN "${CMAKE_CXX_COMPILER}" DIRECTORY)
+    get_filename_component(FOCUSFORGE_RC_BIN "${CMAKE_RC_COMPILER}" DIRECTORY)
+    if(NOT FOCUSFORGE_RC_BIN STREQUAL FOCUSFORGE_MINGW_BIN
+       AND EXISTS "${FOCUSFORGE_MINGW_BIN}/windres.exe")
+        set(CMAKE_RC_COMPILER "${FOCUSFORGE_MINGW_BIN}/windres.exe"
+            CACHE FILEPATH "Resource compiler matching the active MinGW toolchain" FORCE)
+    endif()
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -9,7 +19,15 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 qt_standard_project_setup()
 
+configure_file(
+    resources/focusforge.rc.in
+    "${CMAKE_CURRENT_BINARY_DIR}/focusforge.rc"
+    @ONLY
+)
+
 qt_add_executable(FocusForge
+    "${CMAKE_CURRENT_BINARY_DIR}/focusforge.rc"
+    resources/focusforge.qrc
     main.cpp
     mainwindow.cpp
     mainwindow.h
