@@ -266,8 +266,6 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
     };
 
     refreshContent();
-
-    connect(this, &StudyReportPage::backRequested, this, [=]() {});
 }
 
 void StudyReportPage::refresh()

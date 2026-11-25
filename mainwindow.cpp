@@ -383,6 +383,10 @@ MainWindow::MainWindow(QWidget *parent)
         pages->setCurrentWidget(dashboardPage);
     });
 
+    connect(studyReportPage, &StudyReportPage::backRequested, this, [=]() {
+        pages->setCurrentWidget(dashboardPage);
+    });
+
     connect(subjectsPage, &SubjectsManagerPage::subjectsChanged, this, [=]() {
         updateDashboardStats();
     });
