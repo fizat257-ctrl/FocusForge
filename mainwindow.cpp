@@ -30,11 +30,14 @@ MainWindow::MainWindow(QWidget *parent)
       tasksCard(nullptr),
       completedCard(nullptr),
       subjectsCard(nullptr),
+    studyHoursCard(nullptr),
       taskCardsContainer(nullptr),
       studyReportPage(nullptr),
       timerSubjectCombo(nullptr),
       timerTaskCombo(nullptr),
-      remainingSeconds(25 * 60)
+        timerDurationCombo(nullptr),
+        activeSessionDurationSeconds(25 * 60),
+    remainingMilliseconds(25 * 60 * 1000)
 {
     setWindowTitle("FocusForge - Smart Study Manager");
     resize(1000, 650);
@@ -117,11 +120,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     tasksCard = new QLabel(QString("Total Tasks\n%1").arg(taskStore.tasks().size()));
     completedCard = new QLabel("Completed\n0");
-    QLabel *hoursCard = new QLabel("Study Hours\n3.5");
+    studyHoursCard = new QLabel("Study Hours\n0m");
     subjectsCard = new QLabel(QString("Subjects\n%1").arg(subjectStore.subjects().size()));
 
     QLabel *cards[] = {
-        tasksCard, completedCard, hoursCard, subjectsCard
+        tasksCard, completedCard, studyHoursCard, subjectsCard
     };
 
     for (QLabel *card : cards) {
@@ -155,13 +158,9 @@ MainWindow::MainWindow(QWidget *parent)
         "padding: 12px 0px;"
     );
 
-    QLabel *task1 = new QLabel("Complete OOP Assignment");
-    QLabel *task2 = new QLabel("Study Computer Networks");
-    QLabel *task3 = new QLabel("Practice Calculus");
+    recentTaskLabels = {new QLabel, new QLabel, new QLabel};
 
-    QLabel *recentTasks[] = {task1, task2, task3};
-
-    for (QLabel *task : recentTasks) {
+    for (QLabel *task : recentTaskLabels) {
         task->setStyleSheet(
             "background-color: white;"
             "border: 1px solid #E5E0FF;"
@@ -174,9 +173,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     mainLayout->addSpacing(25);
     mainLayout->addWidget(recentTasksTitle);
-    mainLayout->addWidget(task1);
-    mainLayout->addWidget(task2);
-    mainLayout->addWidget(task3);
+    for (QLabel *task : recentTaskLabels)
+        mainLayout->addWidget(task);
     mainLayout->addStretch();
 
     // ================= TIMER PAGE =================
@@ -221,6 +219,16 @@ MainWindow::MainWindow(QWidget *parent)
     pauseButton->setMinimumSize(130, 50);
     resetButton->setMinimumSize(130, 50);
 
+    timerDurationCombo = new QComboBox;
+    const int durationOptionsMinutes[] = {1, 2, 3, 5, 10, 15, 20, 25, 30, 45, 60};
+    for (int minutes : durationOptionsMinutes) {
+        timerDurationCombo->addItem(
+            QString("%1 minute%2").arg(minutes).arg(minutes == 1 ? "" : "s"),
+            minutes * 60
+        );
+    }
+    timerDurationCombo->setCurrentIndex(timerDurationCombo->findData(25 * 60));
+
     QHBoxLayout *timerButtonsLayout = new QHBoxLayout;
     timerButtonsLayout->setSpacing(15);
 
@@ -242,16 +250,21 @@ MainWindow::MainWindow(QWidget *parent)
 
     QLabel *subjectSelectionLabel = new QLabel("Subject (optional)");
     QLabel *taskSelectionLabel = new QLabel("Task (optional)");
+    QLabel *durationSelectionLabel = new QLabel("Duration");
 
     QHBoxLayout *selectionLayout = new QHBoxLayout;
     QVBoxLayout *subjectSelectionLayout = new QVBoxLayout;
     QVBoxLayout *taskSelectionLayout = new QVBoxLayout;
+    QVBoxLayout *durationSelectionLayout = new QVBoxLayout;
     subjectSelectionLayout->addWidget(subjectSelectionLabel);
     subjectSelectionLayout->addWidget(timerSubjectCombo);
     taskSelectionLayout->addWidget(taskSelectionLabel);
     taskSelectionLayout->addWidget(timerTaskCombo);
+    durationSelectionLayout->addWidget(durationSelectionLabel);
+    durationSelectionLayout->addWidget(timerDurationCombo);
     selectionLayout->addLayout(subjectSelectionLayout);
     selectionLayout->addLayout(taskSelectionLayout);
+    selectionLayout->addLayout(durationSelectionLayout);
 
     timerLayout->addWidget(backButton);
     timerLayout->addSpacing(30);
@@ -395,15 +408,23 @@ MainWindow::MainWindow(QWidget *parent)
 
     timer->setInterval(1000);
 
-    connect(timer, &QTimer::timeout, this, [=]() {
-        if (remainingSeconds > 0) {
-            remainingSeconds--;
-            updateTimerDisplay();
-        }
+    connect(timerDurationCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [=](int index) {
+        if (timer->isActive() || !activeSessionStartTime.isNull())
+            return;
 
-        if (remainingSeconds <= 0) {
+        remainingMilliseconds = timerDurationCombo->itemData(index).toLongLong() * 1000;
+        updateTimerDisplay();
+    });
+
+    connect(timer, &QTimer::timeout, this, [=]() {
+        remainingMilliseconds = qMax<qint64>(0,
+            QDateTime::currentDateTime().msecsTo(sessionEndTime));
+        updateTimerDisplay();
+
+        if (remainingMilliseconds <= 0) {
             timer->stop();
             timerLabel->setText("Time's Up!");
+            completeFocusSession();
         }
     });
 
@@ -437,8 +458,9 @@ MainWindow::MainWindow(QWidget *parent)
 
 void MainWindow::updateTimerDisplay()
 {
-    int minutes = remainingSeconds / 60;
-    int seconds = remainingSeconds % 60;
+    const qint64 displayedSeconds = (remainingMilliseconds + 999) / 1000;
+    const int minutes = static_cast<int>(displayedSeconds / 60);
+    const int seconds = static_cast<int>(displayedSeconds % 60);
 
     timerLabel->setText(
         QString("%1:%2")
@@ -449,24 +471,39 @@ void MainWindow::updateTimerDisplay()
 
 void MainWindow::startTimer()
 {
-    if (remainingSeconds <= 0)
+    if (timer->isActive() || remainingMilliseconds <= 0)
         return;
 
-    if (activeSessionStartTime.isNull())
+    if (activeSessionStartTime.isNull()) {
+        activeSessionDurationSeconds = timerDurationCombo->currentData().toInt();
+        remainingMilliseconds = static_cast<qint64>(activeSessionDurationSeconds) * 1000;
         activeSessionStartTime = QDateTime::currentDateTime();
+        timerDurationCombo->setEnabled(false);
+    }
 
-    sessionEndTime = QDateTime::currentDateTime().addSecs(remainingSeconds);
+    sessionEndTime = QDateTime::currentDateTime().addMSecs(remainingMilliseconds);
     timer->start();
 }
 
 void MainWindow::pauseTimer()
 {
+    bool deadlineReached = false;
     if (timer->isActive()) {
-        remainingSeconds = qMax(0,
-            QDateTime::currentDateTime().secsTo(sessionEndTime));
+        const QDateTime now = QDateTime::currentDateTime();
+        deadlineReached = now >= sessionEndTime;
+        remainingMilliseconds = qMax<qint64>(0,
+            now.msecsTo(sessionEndTime));
         sessionEndTime = QDateTime();
     }
     timer->stop();
+
+    remainingMilliseconds = qMax<qint64>(0, remainingMilliseconds);
+    if (deadlineReached && !activeSessionStartTime.isNull()) {
+        timerLabel->setText("Time's Up!");
+        completeFocusSession();
+        return;
+    }
+
     updateTimerDisplay();
 }
 
@@ -475,21 +512,27 @@ void MainWindow::resetTimer()
     timer->stop();
     sessionEndTime = QDateTime();
     activeSessionStartTime = QDateTime();
-    remainingSeconds = 25 * 60;
+    activeSessionDurationSeconds = timerDurationCombo->currentData().toInt();
+    remainingMilliseconds = static_cast<qint64>(activeSessionDurationSeconds) * 1000;
+    timerDurationCombo->setEnabled(true);
     updateTimerDisplay();
 }
 
 void MainWindow::completeFocusSession()
 {
-    if (activeSessionStartTime.isNull())
+    if (activeSessionStartTime.isNull() || remainingMilliseconds > 0)
         return;
+
+    const QDateTime sessionStartTime = activeSessionStartTime;
+    activeSessionStartTime = QDateTime();
+    timerDurationCombo->setEnabled(true);
 
     StudySession session;
     session.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    session.startTime = activeSessionStartTime;
+    session.startTime = sessionStartTime;
     session.endTime = QDateTime::currentDateTime();
-    session.plannedSeconds = 25 * 60;
-    session.actualSeconds = 25 * 60;
+    session.plannedSeconds = activeSessionDurationSeconds;
+    session.actualSeconds = activeSessionDurationSeconds;
 
     int subjectIndex = timerSubjectCombo ? timerSubjectCombo->currentIndex() : -1;
     if (subjectIndex > 0) {
@@ -506,7 +549,7 @@ void MainWindow::completeFocusSession()
     }
 
     studySessionStore.addSession(session);
-    activeSessionStartTime = QDateTime();
+    updateDashboardStats();
 
     if (studyReportPage)
         studyReportPage->refresh();
@@ -518,15 +561,50 @@ void MainWindow::updateDashboardStats()
 {
     const QVector<Task> tasks = taskStore.tasks();
     int completed = 0;
+    int totalStudySeconds = 0;
 
     for (const Task &task : tasks) {
         if (task.completed)
             ++completed;
     }
 
+    for (const StudySession &session : studySessionStore.sessions())
+        totalStudySeconds += session.actualSeconds;
+
+    const int studyHours = totalStudySeconds / 3600;
+    const int studyMinutes = (totalStudySeconds % 3600) / 60;
+    const QString studyDuration = studyHours > 0
+        ? QString("%1h %2m").arg(studyHours).arg(studyMinutes)
+        : QString("%1m").arg(studyMinutes);
+
     tasksCard->setText(QString("Total Tasks\n%1").arg(tasks.size()));
     completedCard->setText(QString("Completed\n%1").arg(completed));
     subjectsCard->setText(QString("Subjects\n%1").arg(subjectStore.subjects().size()));
+    studyHoursCard->setText("Study Hours\n" + studyDuration);
+    refreshRecentTasks();
+}
+
+void MainWindow::refreshRecentTasks()
+{
+    const QVector<Task> tasks = taskStore.tasks();
+
+    if (tasks.isEmpty()) {
+        recentTaskLabels[0]->setText("No tasks yet. Add a task to get started.");
+        recentTaskLabels[0]->show();
+        for (int i = 1; i < recentTaskLabels.size(); ++i)
+            recentTaskLabels[i]->hide();
+        return;
+    }
+
+    for (int i = 0; i < recentTaskLabels.size(); ++i) {
+        const int taskIndex = tasks.size() - 1 - i;
+        if (taskIndex >= 0) {
+            recentTaskLabels[i]->setText(tasks[taskIndex].title);
+            recentTaskLabels[i]->show();
+        } else {
+            recentTaskLabels[i]->hide();
+        }
+    }
 }
 
 void MainWindow::refreshTaskCards()

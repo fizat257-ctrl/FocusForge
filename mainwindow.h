@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QList>
 #include <QMainWindow>
 #include <QDateTime>
 
@@ -36,6 +37,8 @@ private:
     QLabel *tasksCard;
     QLabel *completedCard;
     QLabel *subjectsCard;
+    QLabel *studyHoursCard;
+    QList<QLabel *> recentTaskLabels;
     QWidget *taskCardsContainer;
     TaskStore taskStore;
     SubjectStore subjectStore;
@@ -43,8 +46,10 @@ private:
     StudyReportPage *studyReportPage;
     QComboBox *timerSubjectCombo;
     QComboBox *timerTaskCombo;
+    QComboBox *timerDurationCombo;
 
-    int remainingSeconds;
+    int activeSessionDurationSeconds;
+    qint64 remainingMilliseconds;
     QDateTime sessionEndTime;
     QDateTime activeSessionStartTime;
 
@@ -55,6 +60,7 @@ private:
     void completeFocusSession();
 
     void updateDashboardStats();
+    void refreshRecentTasks();
     void refreshTaskCards();
     void showTaskDialog(Task *existingTask = nullptr);
 };

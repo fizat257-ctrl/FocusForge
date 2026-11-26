@@ -1,3 +1,23 @@
 build/
 *.exe
 *.o
+
+# CMake and Ninja generated output
+/build-*/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/build.ninja
+/.ninja_*
+/*_autogen/
+
+# CPack and WiX generated output
+/dist/
+/_CPack_Packages/
+/FocusForge-*.msi
+*.wixpdb
+
+# Local backup directories
+/-backup-/
+/*-backup-*/

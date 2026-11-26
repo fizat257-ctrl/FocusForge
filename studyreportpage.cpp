@@ -95,7 +95,14 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
     : QWidget(parent),
       m_sessionStore(sessionStore),
       m_taskStore(taskStore),
-      m_subjectStore(subjectStore)
+            m_subjectStore(subjectStore),
+            m_totalLabel(nullptr),
+            m_todayLabel(nullptr),
+            m_weekLabel(nullptr),
+            m_sessionsLabel(nullptr),
+            m_subjectStats(nullptr),
+            m_taskStats(nullptr),
+            m_chart(nullptr)
 {
     QVBoxLayout *pageLayout = new QVBoxLayout(this);
 
@@ -127,12 +134,12 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
 
     QHBoxLayout *summaryLayout = new QHBoxLayout;
 
-    QLabel *totalLabel = new QLabel;
-    QLabel *todayLabel = new QLabel;
-    QLabel *weekLabel = new QLabel;
-    QLabel *sessionsLabel = new QLabel;
+    m_totalLabel = new QLabel;
+    m_todayLabel = new QLabel;
+    m_weekLabel = new QLabel;
+    m_sessionsLabel = new QLabel;
 
-    QLabel *summaryLabels[] = {totalLabel, todayLabel, weekLabel, sessionsLabel};
+    QLabel *summaryLabels[] = {m_totalLabel, m_todayLabel, m_weekLabel, m_sessionsLabel};
     for (QLabel *label : summaryLabels) {
         label->setAlignment(Qt::AlignCenter);
         label->setMinimumHeight(105);
@@ -156,9 +163,9 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
 
     QLabel *chartTitle = new QLabel("Weekly Progress");
     chartTitle->setStyleSheet("font-size: 20px; font-weight: bold; color: #25243A;");
-    WeeklyProgressWidget *chart = new WeeklyProgressWidget;
+    m_chart = new WeeklyProgressWidget;
     chartLayout->addWidget(chartTitle);
-    chartLayout->addWidget(chart);
+    chartLayout->addWidget(m_chart);
 
     contentLayout->addWidget(chartCard);
 
@@ -172,10 +179,10 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
     subjectTitle->setStyleSheet("font-size: 20px; font-weight: bold; color: #25243A;");
     subjectLayout->addWidget(subjectTitle);
 
-    QLabel *subjectStats = new QLabel;
-    subjectStats->setWordWrap(true);
-    subjectStats->setStyleSheet("font-size: 14px; color: #555555;");
-    subjectLayout->addWidget(subjectStats);
+    m_subjectStats = new QLabel;
+    m_subjectStats->setWordWrap(true);
+    m_subjectStats->setStyleSheet("font-size: 14px; color: #555555;");
+    subjectLayout->addWidget(m_subjectStats);
 
     QFrame *taskCard = new QFrame;
     taskCard->setStyleSheet("QFrame { background-color: white; border: 1px solid #E5E0FF; border-radius: 15px; }");
@@ -185,10 +192,10 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
     taskTitle->setStyleSheet("font-size: 20px; font-weight: bold; color: #25243A;");
     taskLayout->addWidget(taskTitle);
 
-    QLabel *taskStats = new QLabel;
-    taskStats->setWordWrap(true);
-    taskStats->setStyleSheet("font-size: 14px; color: #555555;");
-    taskLayout->addWidget(taskStats);
+    m_taskStats = new QLabel;
+    m_taskStats->setWordWrap(true);
+    m_taskStats->setStyleSheet("font-size: 14px; color: #555555;");
+    taskLayout->addWidget(m_taskStats);
 
     detailsLayout->addWidget(subjectCard, 1);
     detailsLayout->addWidget(taskCard, 1);
@@ -199,77 +206,77 @@ StudyReportPage::StudyReportPage(StudySessionStore *sessionStore,
 
     connect(backButton, &QPushButton::clicked, this, &StudyReportPage::backRequested);
 
-    const auto refreshContent = [=]() {
-        const QVector<StudySession> sessions = m_sessionStore->sessions();
-        const QDate today = QDate::currentDate();
-        const QDate weekStart = today.addDays(-(today.dayOfWeek() - 1));
-
-        int totalSeconds = 0;
-        int todaySeconds = 0;
-        int weekSeconds = 0;
-        QList<int> weekMinutes(7, 0);
-        QMap<QString, int> subjectSeconds;
-
-        for (const StudySession &session : sessions) {
-            totalSeconds += session.actualSeconds;
-
-            QDate sessionDate = session.endTime.isValid()
-                ? session.endTime.date()
-                : session.startTime.date();
-
-            if (sessionDate == today)
-                todaySeconds += session.actualSeconds;
-
-            if (sessionDate >= weekStart && sessionDate <= today) {
-                weekSeconds += session.actualSeconds;
-                int dayIndex = sessionDate.dayOfWeek() - 1;
-                weekMinutes[dayIndex] += session.actualSeconds / 60;
-            }
-
-            QString subjectName = session.subjectName.isEmpty()
-                ? "Uncategorized"
-                : session.subjectName;
-            subjectSeconds[subjectName] += session.actualSeconds;
-        }
-
-        totalLabel->setText("Total Study Time\n" + formatDuration(totalSeconds));
-        todayLabel->setText("Today's Study Time\n" + formatDuration(todaySeconds));
-        weekLabel->setText("Weekly Study Time\n" + formatDuration(weekSeconds));
-        sessionsLabel->setText("Completed Sessions\n" + QString::number(sessions.size()));
-        chart->setMinutes(weekMinutes);
-
-        if (subjectSeconds.isEmpty()) {
-            subjectStats->setText("No completed focus sessions yet.");
-        } else {
-            QString text;
-            for (auto it = subjectSeconds.begin(); it != subjectSeconds.end(); ++it)
-                text += it.key() + ": " + formatDuration(it.value()) + "\n";
-            subjectStats->setText(text.trimmed());
-        }
-
-        const QVector<Task> tasks = m_taskStore->tasks();
-        int completedTasks = 0;
-        for (const Task &task : tasks) {
-            if (task.completed)
-                ++completedTasks;
-        }
-
-        int percentage = tasks.isEmpty()
-            ? 0
-            : (completedTasks * 100 / tasks.size());
-
-        taskStats->setText(
-            "Total Tasks: " + QString::number(tasks.size()) + "\n" +
-            "Completed: " + QString::number(completedTasks) + "\n" +
-            "Completion: " + QString::number(percentage) + "%"
-        );
-    };
-
-    refreshContent();
+    updateReport();
 }
 
 void StudyReportPage::refresh()
 {
-    hide();
-    show();
+    updateReport();
+}
+
+void StudyReportPage::updateReport()
+{
+    const QVector<StudySession> sessions = m_sessionStore->sessions();
+    const QDate today = QDate::currentDate();
+    const QDate weekStart = today.addDays(-(today.dayOfWeek() - 1));
+
+    int totalSeconds = 0;
+    int todaySeconds = 0;
+    int weekSeconds = 0;
+    QList<int> weekMinutes(7, 0);
+    QMap<QString, int> subjectSeconds;
+
+    for (const StudySession &session : sessions) {
+        totalSeconds += session.actualSeconds;
+
+        const QDate sessionDate = session.endTime.isValid()
+            ? session.endTime.date()
+            : session.startTime.date();
+
+        if (sessionDate == today)
+            todaySeconds += session.actualSeconds;
+
+        if (sessionDate >= weekStart && sessionDate <= today) {
+            weekSeconds += session.actualSeconds;
+            const int dayIndex = sessionDate.dayOfWeek() - 1;
+            weekMinutes[dayIndex] += session.actualSeconds / 60;
+        }
+
+        const QString subjectName = session.subjectName.isEmpty()
+            ? "Uncategorized"
+            : session.subjectName;
+        subjectSeconds[subjectName] += session.actualSeconds;
+    }
+
+    m_totalLabel->setText("Total Study Time\n" + formatDuration(totalSeconds));
+    m_todayLabel->setText("Today's Study Time\n" + formatDuration(todaySeconds));
+    m_weekLabel->setText("Weekly Study Time\n" + formatDuration(weekSeconds));
+    m_sessionsLabel->setText("Completed Sessions\n" + QString::number(sessions.size()));
+    m_chart->setMinutes(weekMinutes);
+
+    if (subjectSeconds.isEmpty()) {
+        m_subjectStats->setText("No completed focus sessions yet.");
+    } else {
+        QString text;
+        for (auto it = subjectSeconds.begin(); it != subjectSeconds.end(); ++it)
+            text += it.key() + ": " + formatDuration(it.value()) + "\n";
+        m_subjectStats->setText(text.trimmed());
+    }
+
+    const QVector<Task> tasks = m_taskStore->tasks();
+    int completedTasks = 0;
+    for (const Task &task : tasks) {
+        if (task.completed)
+            ++completedTasks;
+    }
+
+    const int percentage = tasks.isEmpty()
+        ? 0
+        : (completedTasks * 100 / tasks.size());
+
+    m_taskStats->setText(
+        "Total Tasks: " + QString::number(tasks.size()) + "\n" +
+        "Completed: " + QString::number(completedTasks) + "\n" +
+        "Completion: " + QString::number(percentage) + "%"
+    );
 }
