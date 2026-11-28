@@ -4,12 +4,14 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:/msys64/ucrt64/include",
-                "C:/msys64/ucrt64/include/qt6",
-                "C:/msys64/ucrt64/include/qt6/QtWidgets",
-                "C:/msys64/ucrt64/include/qt6/QtCore",
-                "C:/msys64/ucrt64/include/qt6/QtGui"
+                "C:/Qt/6.12.0/mingw_64/include",
+                "C:/Qt/6.12.0/mingw_64/include/QtCore",
+                "C:/Qt/6.12.0/mingw_64/include/QtGui",
+                "C:/Qt/6.12.0/mingw_64/include/QtWidgets",
+                "C:/Qt/6.12.0/mingw_64/include/QtNetwork"
             ],
+            "compilerPath": "C:/Qt/Tools/mingw1310_64/bin/g++.exe",
+            "cppStandard": "c++17",
             "defines": [
                 "_DEBUG",
                 "UNICODE",

@@ -1,0 +1,11 @@
+﻿
+
+    Directory: C:\Users\HP\OneDrive\Desktop\FocusForge\.vscode
+
+
+Mode                 LastWriteTime         Length Name                                                                                       
+----                 -------------         ------ ----                                                                                       
+-a---l        17/11/2026     17:13            562 c_cpp_properties.json                                                                      
+-a---l        12/11/2026     19:22             70 settings.json                                                                              
+
+

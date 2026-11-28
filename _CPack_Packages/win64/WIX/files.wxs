@@ -3,9 +3,133 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
     <Fragment>
         <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.D3Dcompiler_47.dll" Guid="*">
+                <File Id="CM_FP_bin.D3Dcompiler_47.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\D3Dcompiler_47.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
             <Component Id="CM_CP_bin.FocusForge.exe" Guid="*">
                 <File Id="CM_FP_bin.FocusForge.exe" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\FocusForge.exe" KeyPath="yes"/>
             </Component>
         </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.libgcc_s_seh_1.dll" Guid="*">
+                <File Id="CM_FP_bin.libgcc_s_seh_1.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\libgcc_s_seh-1.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.libstdc___6.dll" Guid="*">
+                <File Id="CM_FP_bin.libstdc___6.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\libstdc++-6.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.libwinpthread_1.dll" Guid="*">
+                <File Id="CM_FP_bin.libwinpthread_1.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\libwinpthread-1.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.opengl32sw.dll" Guid="*">
+                <File Id="CM_FP_bin.opengl32sw.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\opengl32sw.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.qt.conf" Guid="*">
+                <File Id="CM_FP_bin.qt.conf" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\qt.conf" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.Qt6Core.dll" Guid="*">
+                <File Id="CM_FP_bin.Qt6Core.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\Qt6Core.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.Qt6Gui.dll" Guid="*">
+                <File Id="CM_FP_bin.Qt6Gui.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\Qt6Gui.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.Qt6Network.dll" Guid="*">
+                <File Id="CM_FP_bin.Qt6Network.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\Qt6Network.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.Qt6Svg.dll" Guid="*">
+                <File Id="CM_FP_bin.Qt6Svg.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\Qt6Svg.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_bin">
+            <Component Id="CM_CP_bin.Qt6Widgets.dll" Guid="*">
+                <File Id="CM_FP_bin.Qt6Widgets.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\bin\Qt6Widgets.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.generic">
+            <Component Id="CM_CP_plugins.generic.qtuiotouchplugin.dll" Guid="*">
+                <File Id="CM_FP_plugins.generic.qtuiotouchplugin.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\generic\qtuiotouchplugin.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.iconengines">
+            <Component Id="CM_CP_plugins.iconengines.qsvgicon.dll" Guid="*">
+                <File Id="CM_FP_plugins.iconengines.qsvgicon.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\iconengines\qsvgicon.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.imageformats">
+            <Component Id="CM_CP_plugins.imageformats.qgif.dll" Guid="*">
+                <File Id="CM_FP_plugins.imageformats.qgif.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\imageformats\qgif.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.imageformats">
+            <Component Id="CM_CP_plugins.imageformats.qico.dll" Guid="*">
+                <File Id="CM_FP_plugins.imageformats.qico.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\imageformats\qico.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.imageformats">
+            <Component Id="CM_CP_plugins.imageformats.qjpeg.dll" Guid="*">
+                <File Id="CM_FP_plugins.imageformats.qjpeg.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\imageformats\qjpeg.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.imageformats">
+            <Component Id="CM_CP_plugins.imageformats.qsvg.dll" Guid="*">
+                <File Id="CM_FP_plugins.imageformats.qsvg.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\imageformats\qsvg.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.networkinformation">
+            <Component Id="CM_CP_plugins.networkinformation.qnetworklistmanager.dll" Guid="*">
+                <File Id="CM_FP_plugins.networkinformation.qnetworklistmanager.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\networkinformation\qnetworklistmanager.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.platforms">
+            <Component Id="CM_CP_plugins.platforms.qwindows.dll" Guid="*">
+                <File Id="CM_FP_plugins.platforms.qwindows.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\platforms\qwindows.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.styles">
+            <Component Id="CM_CP_plugins.styles.qmodernwindowsstyle.dll" Guid="*">
+                <File Id="CM_FP_plugins.styles.qmodernwindowsstyle.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\styles\qmodernwindowsstyle.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.tls">
+            <Component Id="CM_CP_plugins.tls.qcertonlybackend.dll" Guid="*">
+                <File Id="CM_FP_plugins.tls.qcertonlybackend.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\tls\qcertonlybackend.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="CM_DP_plugins.tls">
+            <Component Id="CM_CP_plugins.tls.qschannelbackend.dll" Guid="*">
+                <File Id="CM_FP_plugins.tls.qschannelbackend.dll" Source="\\?\C:\Users\HP\OneDrive\Desktop\FocusForge\_CPack_Packages\win64\WIX\FocusForge-1.0.0-win64\plugins\tls\qschannelbackend.dll" KeyPath="yes"/>
+            </Component>
+        </DirectoryRef>
+        <DirectoryRef Id="PROGRAM_MENU_FOLDER">
+            <Component Id="CM_SHORTCUT" Guid="*">
+                <Shortcut Id="CM_SP_bin.FocusForge.exe" Name="FocusForge" Target="[#CM_FP_bin.FocusForge.exe]" WorkingDirectory="CM_DP_bin"/>
+                <RegistryValue Root="HKCU" Key="Software\FocusForge Studio\FocusForge" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+                <RemoveFolder Id="CM_REMOVE_PROGRAM_MENU_FOLDER" On="uninstall"/>
+                <Shortcut Id="UNINSTALL" Name="Uninstall FocusForge" Description="Uninstalls FocusForge" Target="[SystemFolder]msiexec.exe" Arguments="/x [ProductCode]"/>
+            </Component>
+        </DirectoryRef>
+        <StandardDirectory Id="DesktopFolder">
+            <Component Id="CM_SHORTCUT_DESKTOP" Guid="*">
+                <Shortcut Id="CM_DSP_bin.FocusForge.exe" Name="FocusForge" Target="[#CM_FP_bin.FocusForge.exe]" WorkingDirectory="CM_DP_bin"/>
+                <RegistryValue Root="HKCU" Key="Software\FocusForge Studio\FocusForge" Name="installed_desktop" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </StandardDirectory>
     </Fragment>
 </Wix>

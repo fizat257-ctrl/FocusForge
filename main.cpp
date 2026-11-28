@@ -6,6 +6,10 @@ int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
 
+    app.setOrganizationName("FocusForge");
+    app.setOrganizationDomain("focusforge.local");
+    app.setApplicationName("FocusForge");
+
     const QIcon appIcon(QStringLiteral(":/icons/focusforge.ico"));
     app.setWindowIcon(appIcon);
 

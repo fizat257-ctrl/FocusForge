@@ -5,7 +5,20 @@
         <StandardDirectory Id="ProgramFiles6432Folder">
             <Directory Id="INSTALL_ROOT" Name="FocusForge">
                 <Directory Id="CM_DP_bin" Name="bin"/>
+                <Directory Id="CM_DP_plugins" Name="plugins">
+                    <Directory Id="CM_DP_plugins.generic" Name="generic"/>
+                    <Directory Id="CM_DP_plugins.iconengines" Name="iconengines"/>
+                    <Directory Id="CM_DP_plugins.imageformats" Name="imageformats"/>
+                    <Directory Id="CM_DP_plugins.networkinformation" Name="networkinformation"/>
+                    <Directory Id="CM_DP_plugins.platforms" Name="platforms"/>
+                    <Directory Id="CM_DP_plugins.styles" Name="styles"/>
+                    <Directory Id="CM_DP_plugins.tls" Name="tls"/>
+                </Directory>
             </Directory>
         </StandardDirectory>
+        <StandardDirectory Id="ProgramMenuFolder">
+            <Directory Id="PROGRAM_MENU_FOLDER" Name="FocusForge"/>
+        </StandardDirectory>
+        <StandardDirectory Id="DesktopFolder"/>
     </Fragment>
 </Wix>

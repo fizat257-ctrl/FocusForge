@@ -11,15 +11,15 @@ public:
     TaskStore();
 
     QVector<Task> tasks() const;
-    void addTask(const Task &task);
-    void updateTask(const Task &task);
-    void removeTask(const QString &id);
+    bool addTask(const Task &task);
+    bool updateTask(const Task &task);
+    bool removeTask(const QString &id);
 
 private:
     QVector<Task> m_tasks;
 
     void load();
-    void save() const;
+    bool save() const;
 };
 
 #endif

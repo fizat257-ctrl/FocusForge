@@ -12,10 +12,35 @@ QVector<StudySession> StudySessionStore::sessions() const
     return m_sessions;
 }
 
-void StudySessionStore::addSession(const StudySession &session)
+bool StudySessionStore::addSession(const StudySession &session)
 {
+    if (session.id.isEmpty())
+        return false;
+
+    int existingIndex = -1;
+    for (int i = 0; i < m_sessions.size(); ++i) {
+        if (m_sessions[i].id == session.id) {
+            existingIndex = i;
+            break;
+        }
+    }
+
+    if (existingIndex >= 0) {
+        const StudySession previousSession = m_sessions[existingIndex];
+        m_sessions[existingIndex] = session;
+        if (save())
+            return true;
+
+        m_sessions[existingIndex] = previousSession;
+        return false;
+    }
+
     m_sessions.append(session);
-    save();
+    if (save())
+        return true;
+
+    m_sessions.removeLast();
+    return false;
 }
 
 void StudySessionStore::load()
@@ -46,7 +71,7 @@ void StudySessionStore::load()
     settings.endArray();
 }
 
-void StudySessionStore::save() const
+bool StudySessionStore::save() const
 {
     QSettings settings("FocusForge", "FocusForge");
     settings.beginWriteArray("StudySessions", m_sessions.size());
@@ -68,4 +93,12 @@ void StudySessionStore::save() const
 
     settings.endArray();
     settings.sync();
+
+    // Check if the settings were saved correctly
+    if (settings.status() != QSettings::NoError) {
+        qWarning("Failed to save study sessions to settings.");
+        return false;
+    }
+
+    return true;
 }

@@ -1,0 +1,7 @@
+﻿
+quizgenerator.cpp:81:    clearApiKeySecurely();
+quizgenerator.cpp:100:    clearApiKeySecurely();
+quizgenerator.cpp:179:    clearApiKeySecurely();
+quizgenerator.cpp:240:void QuizGenerator::clearApiKeySecurely()
+
+

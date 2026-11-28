@@ -11,13 +11,13 @@ public:
     StudySessionStore();
 
     QVector<StudySession> sessions() const;
-    void addSession(const StudySession &session);
+    bool addSession(const StudySession &session);
 
 private:
     QVector<StudySession> m_sessions;
 
     void load();
-    void save() const;
+    bool save() const;
 };
 
 #endif

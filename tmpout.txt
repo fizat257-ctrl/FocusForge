@@ -1,0 +1,10 @@
+﻿
+
+    Directory: C:\Users\HP\OneDrive\Desktop\FocusForge
+
+
+Mode                 LastWriteTime         Length Name                                                                                       
+----                 -------------         ------ ----                                                                                       
+-a---l        28/11/2026     11:30          15908 quizgenerator.cpp                                                                          
+
+

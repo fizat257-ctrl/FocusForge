@@ -1,6 +1,18 @@
+﻿
 #include "mainwindow.h"
+#include "stopwatchpage.h"
 #include "studyreportpage.h"
+#include <QMenuBar>
+#include <QMenu>
+#include <QAction>
 
+#include <QDesktopServices>
+#include <QDir>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QStandardPaths>
+#include <QUrl>
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -16,9 +28,121 @@
 #include <QDialogButtonBox>
 #include <QLineEdit>
 #include <QMessageBox>
+#include "apikeyeditordialog.h"
 #include <QScrollArea>
 #include <QTextEdit>
 #include <QUuid>
+#include <QTimeEdit>
+#include <QSpinBox>
+#include <functional>
+
+namespace {
+
+QString attachmentFolderName(const QString &taskId)
+{
+    QString folderName;
+    for (const QChar character : taskId) {
+        if (character.isLetterOrNumber() || character == QLatin1Char('-') || character == QLatin1Char('_'))
+            folderName.append(character);
+        else
+            folderName.append(QLatin1Char('_'));
+    }
+    return folderName.isEmpty() ? QStringLiteral("unknown-task") : folderName;
+}
+
+QString attachmentRootPath()
+{
+    const QString appDataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return appDataPath.isEmpty()
+        ? QString()
+        : QDir::cleanPath(appDataPath + QLatin1String("/attachments"));
+}
+
+QString attachmentAbsolutePath(const QString &relativePath)
+{
+    const QString root = attachmentRootPath();
+    if (root.isEmpty() || relativePath.isEmpty())
+        return QString();
+
+    const QString absolute = QDir::cleanPath(QDir(root).filePath(relativePath));
+    const QString rootPrefix = QDir::cleanPath(root) + QLatin1Char('/');
+    if (absolute != QDir::cleanPath(root) && !absolute.startsWith(rootPrefix, Qt::CaseInsensitive))
+        return QString();
+
+    return absolute;
+}
+
+bool isSupportedAttachmentType(const QString &filePath)
+{
+    const QString suffix = QFileInfo(filePath).suffix().toLower();
+    if (suffix != QLatin1String("pdf") && suffix != QLatin1String("png"))
+        return false;
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return false;
+
+    if (suffix == QLatin1String("pdf")) {
+        const QByteArray header = file.read(5);
+        return header.startsWith("%PDF-");
+    }
+
+    const QByteArray header = file.read(8);
+    const QByteArray pngSignature("\x89PNG\r\n\x1A\n", 8);
+    return header == pngSignature;
+}
+
+bool copyAttachmentToStorage(const QString &sourcePath,
+                             const QString &taskId,
+                             TaskAttachment &attachment)
+{
+    const QFileInfo source(sourcePath);
+    if (!source.isFile() || !isSupportedAttachmentType(sourcePath))
+        return false;
+
+    const QString root = attachmentRootPath();
+    if (root.isEmpty())
+        return false;
+
+    const QString taskFolder = QDir::cleanPath(root + QLatin1Char('/') + attachmentFolderName(taskId));
+    QDir directory;
+    if (!directory.mkpath(taskFolder))
+        return false;
+
+    const QString extension = source.suffix().toLower();
+    const QString fileName = QUuid::createUuid().toString(QUuid::WithoutBraces) + QLatin1Char('.') + extension;
+    const QString destination = QDir::cleanPath(taskFolder + QLatin1Char('/') + fileName);
+
+    if (!QFile::copy(sourcePath, destination))
+        return false;
+
+    attachment.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    attachment.fileName = source.fileName();
+    attachment.relativePath = QDir::cleanPath(
+        attachmentFolderName(taskId) + QLatin1Char('/') + fileName);
+    return true;
+}
+
+void removeAttachmentFile(const TaskAttachment &attachment)
+{
+    const QString absolutePath = attachmentAbsolutePath(attachment.relativePath);
+    if (!absolutePath.isEmpty())
+        QFile::remove(absolutePath);
+}
+
+void removeTaskAttachmentFolder(const QString &taskId)
+{
+    const QString root = attachmentRootPath();
+    if (root.isEmpty())
+        return;
+
+    const QString taskFolder = QDir::cleanPath(root + QLatin1Char('/') + attachmentFolderName(taskId));
+    QDir taskDirectory(taskFolder);
+    if (taskDirectory.exists())
+        taskDirectory.removeRecursively();
+}
+
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -33,11 +157,19 @@ MainWindow::MainWindow(QWidget *parent)
     studyHoursCard(nullptr),
       taskCardsContainer(nullptr),
       studyReportPage(nullptr),
+      quizGeneratorPage(nullptr),
       timerSubjectCombo(nullptr),
       timerTaskCombo(nullptr),
         timerDurationCombo(nullptr),
         activeSessionDurationSeconds(25 * 60),
-    remainingMilliseconds(25 * 60 * 1000)
+    remainingMilliseconds(25 * 60 * 1000),
+    activeTimerTaskId(),
+    activeTimerTaskTitle(),
+    activeTimerSubjectId(),
+    activeTimerSubjectName(),
+    previouslySelectedGlobalTimerDurationSeconds(25 * 60),
+    unsavedCompletedSession(),
+    unsavedCompletedSessionPending(false)
 {
     setWindowTitle("FocusForge - Smart Study Manager");
     resize(1000, 650);
@@ -68,9 +200,11 @@ MainWindow::MainWindow(QWidget *parent)
     QPushButton *tasksBtn = new QPushButton("Tasks Manager");
     QPushButton *subjectsBtn = new QPushButton("Subjects");
     QPushButton *reportBtn = new QPushButton("Study Report");
+    QPushButton *quizBtn = new QPushButton("Quiz Generator");
+    QPushButton *stopwatchBtn = new QPushButton("Stopwatch");
 
     QPushButton *buttons[] = {
-        dashboardBtn, timerBtn, tasksBtn, subjectsBtn, reportBtn
+        dashboardBtn, timerBtn, tasksBtn, subjectsBtn, reportBtn, quizBtn, stopwatchBtn
     };
 
     for (QPushButton *btn : buttons) {
@@ -228,6 +362,7 @@ MainWindow::MainWindow(QWidget *parent)
         );
     }
     timerDurationCombo->setCurrentIndex(timerDurationCombo->findData(25 * 60));
+    previouslySelectedGlobalTimerDurationSeconds = 25 * 60;
 
     QHBoxLayout *timerButtonsLayout = new QHBoxLayout;
     timerButtonsLayout->setSpacing(15);
@@ -345,6 +480,18 @@ MainWindow::MainWindow(QWidget *parent)
     pages->addWidget(tasksPage);
     pages->addWidget(subjectsPage);
     pages->addWidget(studyReportPage);
+    quizGeneratorPage = new QuizGeneratorPage(
+    &taskStore,
+    &quizGenerator,
+    &quizTextExtractor,
+    &quizStore,
+    &quizAttemptStore,
+    this
+);
+
+pages->addWidget(quizGeneratorPage);
+stopwatchPage = new StopwatchPage(this);
+    pages->addWidget(stopwatchPage);
     pages->setCurrentWidget(dashboardPage);
 
     connect(timerBtn, &QPushButton::clicked, this, [=]() {
@@ -387,10 +534,25 @@ MainWindow::MainWindow(QWidget *parent)
         pages->setCurrentWidget(subjectsPage);
     });
 
+    
+
     connect(reportBtn, &QPushButton::clicked, this, [=]() {
-        studyReportPage->refresh();
-        pages->setCurrentWidget(studyReportPage);
-    });
+    studyReportPage->refresh();
+    pages->setCurrentWidget(studyReportPage);
+});
+
+connect(quizBtn, &QPushButton::clicked, this, [this]() {
+    quizGeneratorPage->refresh();
+    pages->setCurrentWidget(quizGeneratorPage);
+});
+connect(stopwatchBtn, &QPushButton::clicked, this, [=]() {
+    pages->setCurrentWidget(stopwatchPage);
+});
+connect(quizGeneratorPage, &QuizGeneratorPage::pageClosed,
+        this, [this, dashboardPage]() {
+    pages->setCurrentWidget(dashboardPage);
+});
+
 
     connect(subjectsPage, &SubjectsManagerPage::backRequested, this, [=]() {
         pages->setCurrentWidget(dashboardPage);
@@ -412,8 +574,20 @@ MainWindow::MainWindow(QWidget *parent)
         if (timer->isActive() || !activeSessionStartTime.isNull())
             return;
 
-        remainingMilliseconds = timerDurationCombo->itemData(index).toLongLong() * 1000;
+        const int selectedSeconds = timerDurationCombo->itemData(index).toInt();
+        if (selectedSeconds > 0)
+            remainingMilliseconds = static_cast<qint64>(selectedSeconds) * 1000;
+
+        if (timerTaskCombo->currentIndex() == 0 && selectedSeconds > 0)
+            previouslySelectedGlobalTimerDurationSeconds = selectedSeconds;
+
         updateTimerDisplay();
+    });
+
+    connect(timerTaskCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, [=](int) {
+        if (timer->isActive() || !activeSessionStartTime.isNull())
+            return;
+        loadSelectedTaskDuration();
     });
 
     connect(timer, &QTimer::timeout, this, [=]() {
@@ -450,12 +624,22 @@ MainWindow::MainWindow(QWidget *parent)
         "}"
     );
 
+    // ================= MENU BAR =================
+    // Create the menubar with a Settings menu for API Key Management
+    QMenu *settingsMenu = menuBar()->addMenu("Settings");
+    QAction *apiKeyAction = settingsMenu->addAction("API Key...");
+    connect(apiKeyAction, &QAction::triggered, this, &MainWindow::onApiKeyManagement);
+
     refreshTaskCards();
     updateDashboardStats();
 }
 
 // ================= TIMER FUNCTIONS =================
-
+void MainWindow::onApiKeyManagement()
+{
+    ApiKeyEditorDialog dialog(this);
+    dialog.exec();
+}
 void MainWindow::updateTimerDisplay()
 {
     const qint64 displayedSeconds = (remainingMilliseconds + 999) / 1000;
@@ -471,6 +655,11 @@ void MainWindow::updateTimerDisplay()
 
 void MainWindow::startTimer()
 {
+    if (unsavedCompletedSessionPending) {
+        showUnsavedSessionRecovery("start a new session");
+        return;
+    }
+
     if (timer->isActive() || remainingMilliseconds <= 0)
         return;
 
@@ -478,7 +667,28 @@ void MainWindow::startTimer()
         activeSessionDurationSeconds = timerDurationCombo->currentData().toInt();
         remainingMilliseconds = static_cast<qint64>(activeSessionDurationSeconds) * 1000;
         activeSessionStartTime = QDateTime::currentDateTime();
+
+        activeTimerTaskId = timerTaskCombo->currentData().toString();
+        activeTimerTaskTitle.clear();
+        for (const Task &task : taskStore.tasks()) {
+            if (task.id == activeTimerTaskId) {
+                activeTimerTaskTitle = task.title;
+                break;
+            }
+        }
+
+        const int subjectIndex = timerSubjectCombo->currentIndex();
+        if (subjectIndex > 0) {
+            activeTimerSubjectId = timerSubjectCombo->currentData().toString();
+            activeTimerSubjectName = timerSubjectCombo->currentText();
+        } else {
+            activeTimerSubjectId.clear();
+            activeTimerSubjectName = "Uncategorized";
+        }
+
         timerDurationCombo->setEnabled(false);
+        timerTaskCombo->setEnabled(false);
+        timerSubjectCombo->setEnabled(false);
     }
 
     sessionEndTime = QDateTime::currentDateTime().addMSecs(remainingMilliseconds);
@@ -509,50 +719,72 @@ void MainWindow::pauseTimer()
 
 void MainWindow::resetTimer()
 {
+    if (unsavedCompletedSessionPending) {
+        showUnsavedSessionRecovery("reset the timer");
+        return;
+    }
+
     timer->stop();
     sessionEndTime = QDateTime();
     activeSessionStartTime = QDateTime();
+    activeTimerTaskId.clear();
+    activeTimerTaskTitle.clear();
+    activeTimerSubjectId.clear();
+    activeTimerSubjectName.clear();
+
     activeSessionDurationSeconds = timerDurationCombo->currentData().toInt();
+    if (activeSessionDurationSeconds <= 0)
+        activeSessionDurationSeconds = previouslySelectedGlobalTimerDurationSeconds;
     remainingMilliseconds = static_cast<qint64>(activeSessionDurationSeconds) * 1000;
+
     timerDurationCombo->setEnabled(true);
+    timerTaskCombo->setEnabled(true);
+    timerSubjectCombo->setEnabled(true);
     updateTimerDisplay();
 }
 
 void MainWindow::completeFocusSession()
 {
+    if (unsavedCompletedSessionPending) {
+        showUnsavedSessionRecovery("complete the session save");
+        return;
+    }
+
     if (activeSessionStartTime.isNull() || remainingMilliseconds > 0)
         return;
 
-    const QDateTime sessionStartTime = activeSessionStartTime;
-    activeSessionStartTime = QDateTime();
-    timerDurationCombo->setEnabled(true);
-
     StudySession session;
     session.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    session.startTime = sessionStartTime;
+    session.startTime = activeSessionStartTime;
     session.endTime = QDateTime::currentDateTime();
     session.plannedSeconds = activeSessionDurationSeconds;
     session.actualSeconds = activeSessionDurationSeconds;
+    session.subjectId = activeTimerSubjectId;
+    session.subjectName = activeTimerSubjectName.isEmpty()
+        ? "Uncategorized"
+        : activeTimerSubjectName;
+    session.taskId = activeTimerTaskId;
+    session.taskTitle = activeTimerTaskTitle;
 
-    int subjectIndex = timerSubjectCombo ? timerSubjectCombo->currentIndex() : -1;
-    if (subjectIndex > 0) {
-        session.subjectId = timerSubjectCombo->currentData().toString();
-        session.subjectName = timerSubjectCombo->currentText();
-    } else {
-        session.subjectName = "Uncategorized";
+    unsavedCompletedSession = session;
+
+    if (studySessionStore.addSession(session)) {
+        clearUnsavedSessionAfterSuccess();
+        return;
     }
 
-    int taskIndex = timerTaskCombo ? timerTaskCombo->currentIndex() : -1;
-    if (taskIndex > 0) {
-        session.taskId = timerTaskCombo->currentData().toString();
-        session.taskTitle = timerTaskCombo->currentText();
-    }
+    unsavedCompletedSessionPending = true;
+    activeSessionStartTime = QDateTime();
+    remainingMilliseconds = 0;
+    timer->stop();
+    sessionEndTime = QDateTime();
 
-    studySessionStore.addSession(session);
-    updateDashboardStats();
+    timerDurationCombo->setEnabled(false);
+    timerTaskCombo->setEnabled(false);
+    timerSubjectCombo->setEnabled(false);
+    timerLabel->setText("Time's Up!");
 
-    if (studyReportPage)
-        studyReportPage->refresh();
+    showUnsavedSessionRecovery("save the completed session");
 }
 
 // ================= TASKS FUNCTIONS =================
@@ -649,12 +881,34 @@ void MainWindow::refreshTaskCards()
         descriptionLabel->setStyleSheet("font-size: 14px; color: #777777;");
 
         QString dueText = task.dueDate.isValid() ? task.dueDate.toString("dd MMM yyyy") : "No due date";
-        QLabel *detailsLabel = new QLabel("Due: " + dueText + "  •  Priority: " + task.priority);
+        if (task.dueTime.isValid())
+            dueText += " • " + task.dueTime.toString("h:mm AP");
+        const int studyMinutes = qBound(1, task.studyDurationSeconds / 60, 180);
+        QLabel *detailsLabel = new QLabel("Due: " + dueText + "  •  Study: " +
+                                         QString::number(studyMinutes) + " min  •  Priority: " + task.priority);
         detailsLabel->setStyleSheet("font-size: 13px; color: #6C63FF;");
 
         textLayout->addWidget(titleLabel);
         textLayout->addWidget(descriptionLabel);
         textLayout->addWidget(detailsLabel);
+
+        if (!task.attachments.isEmpty()) {
+            QStringList attachmentNames;
+            for (const TaskAttachment &attachment : task.attachments) {
+                const QString absolutePath = attachmentAbsolutePath(attachment.relativePath);
+                const bool missing = absolutePath.isEmpty() || !QFileInfo::exists(absolutePath);
+                attachmentNames.append(missing
+                    ? QStringLiteral("Missing: ") + attachment.fileName
+                    : attachment.fileName);
+            }
+
+            QLabel *attachmentsLabel = new QLabel(
+                QStringLiteral("Attachments (%1): ").arg(task.attachments.size()) +
+                attachmentNames.join(QStringLiteral(" • ")));
+            attachmentsLabel->setWordWrap(true);
+            attachmentsLabel->setStyleSheet("font-size: 13px; color: #777777;");
+            textLayout->addWidget(attachmentsLabel);
+        }
 
         QPushButton *editButton = new QPushButton("Edit");
         QPushButton *deleteButton = new QPushButton("Delete");
@@ -673,7 +927,10 @@ void MainWindow::refreshTaskCards()
         connect(completeBox, &QCheckBox::toggled, this, [=](bool checked) {
             Task updated = task;
             updated.completed = checked;
-            taskStore.updateTask(updated);
+            if (!taskStore.updateTask(updated)) {
+                QMessageBox::warning(this, "Task Not Saved",
+                                     "The task completion state could not be saved. Please try again.");
+            }
             refreshTaskCards();
             updateDashboardStats();
         });
@@ -691,8 +948,18 @@ void MainWindow::refreshTaskCards()
             confirmation.setDefaultButton(QMessageBox::No);
 
             if (confirmation.exec() == QMessageBox::Yes) {
-                taskStore.removeTask(task.id);
+                if (!taskStore.removeTask(task.id)) {
+                    QMessageBox::warning(this, "Task Not Deleted",
+                                         "The task could not be deleted. Please try again.");
+                } else {
+                    removeTaskAttachmentFolder(task.id);
+                    // Cascade: safely remove this task's quizzes and attempts.
+                    // Attempts are removed first so none reference a deleted quiz.
+                    quizAttemptStore.removeAttemptsForTask(task.id);
+                    quizStore.removeQuizzesForTask(task.id);
+                }
                 refreshTaskCards();
+                refreshTimerTaskChoices();
                 updateDashboardStats();
             }
         });
@@ -706,49 +973,247 @@ void MainWindow::showTaskDialog(Task *existingTask)
 {
     QDialog dialog(this);
     dialog.setWindowTitle(existingTask ? "Edit Task" : "Add New Task");
-    dialog.resize(480, 390);
+    dialog.resize(520, 560);
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
     QLineEdit *titleEdit = new QLineEdit;
     QTextEdit *descriptionEdit = new QTextEdit;
     QDateEdit *dueDateEdit = new QDateEdit;
+    QCheckBox *dueTimeCheck = new QCheckBox("Set Due Time");
+    QTimeEdit *dueTimeEdit = new QTimeEdit;
+    QComboBox *studyDurationPresetBox = new QComboBox;
+    QSpinBox *customDurationSpin = new QSpinBox;
     QComboBox *priorityBox = new QComboBox;
 
     titleEdit->setPlaceholderText("Task title");
     descriptionEdit->setPlaceholderText("Task description");
-    descriptionEdit->setMinimumHeight(110);
+    descriptionEdit->setMinimumHeight(90);
 
     dueDateEdit->setCalendarPopup(true);
     dueDateEdit->setMinimumDate(QDate::currentDate().addYears(-1));
     dueDateEdit->setMaximumDate(QDate::currentDate().addYears(10));
+    dueDateEdit->setSpecialValueText("No due date");
+
+    dueTimeEdit->setDisplayFormat("h:mm AP");
+    dueTimeEdit->setTime(QTime(9, 0));
+    dueTimeEdit->setEnabled(false);
+
+    for (int minutes : {2, 3, 5, 10, 20, 25})
+        studyDurationPresetBox->addItem(QString::number(minutes) + " minutes", minutes);
+    studyDurationPresetBox->addItem("Custom", 0);
+
+    customDurationSpin->setRange(1, 180);
+    customDurationSpin->setValue(25);
+    customDurationSpin->setSuffix(" minutes");
+    customDurationSpin->setEnabled(false);
+
     priorityBox->addItems({"Low", "Medium", "High"});
 
     if (existingTask) {
         titleEdit->setText(existingTask->title);
         descriptionEdit->setPlainText(existingTask->description);
-        dueDateEdit->setDate(existingTask->dueDate.isValid() ? existingTask->dueDate : QDate::currentDate());
+        if (existingTask->dueDate.isValid())
+            dueDateEdit->setDate(existingTask->dueDate);
+        else
+            dueDateEdit->setDate(dueDateEdit->minimumDate());
+
+        if (existingTask->dueTime.isValid()) {
+            dueTimeCheck->setChecked(true);
+            dueTimeEdit->setTime(existingTask->dueTime);
+            dueTimeEdit->setEnabled(true);
+        }
+
+        if (existingTask->studyDurationPreset == "custom") {
+            studyDurationPresetBox->setCurrentIndex(studyDurationPresetBox->findData(0));
+            customDurationSpin->setValue(qBound(1, existingTask->studyDurationSeconds / 60, 180));
+            customDurationSpin->setEnabled(true);
+        } else {
+            const int presetMinutes = existingTask->studyDurationSeconds / 60;
+            int presetIndex = studyDurationPresetBox->findData(presetMinutes);
+            if (presetIndex < 0)
+                presetIndex = studyDurationPresetBox->findData(25);
+            studyDurationPresetBox->setCurrentIndex(presetIndex);
+        }
+
         priorityBox->setCurrentText(existingTask->priority);
     } else {
         dueDateEdit->setDate(QDate::currentDate());
+        studyDurationPresetBox->setCurrentIndex(studyDurationPresetBox->findData(25));
         priorityBox->setCurrentText("Medium");
     }
+
+    connect(dueTimeCheck, &QCheckBox::toggled, dueTimeEdit, &QWidget::setEnabled);
+    connect(studyDurationPresetBox, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [=](int index) {
+                customDurationSpin->setEnabled(studyDurationPresetBox->itemData(index).toInt() == 0);
+            });
 
     layout->addWidget(new QLabel("Title *"));
     layout->addWidget(titleEdit);
     layout->addWidget(new QLabel("Description"));
     layout->addWidget(descriptionEdit);
 
-    QHBoxLayout *datePriorityLayout = new QHBoxLayout;
+    QHBoxLayout *dateTimePriorityLayout = new QHBoxLayout;
     QVBoxLayout *dateLayout = new QVBoxLayout;
+    QVBoxLayout *timeLayout = new QVBoxLayout;
     QVBoxLayout *priorityLayout = new QVBoxLayout;
     dateLayout->addWidget(new QLabel("Due Date"));
     dateLayout->addWidget(dueDateEdit);
+    timeLayout->addWidget(dueTimeCheck);
+    timeLayout->addWidget(dueTimeEdit);
     priorityLayout->addWidget(new QLabel("Priority"));
     priorityLayout->addWidget(priorityBox);
-    datePriorityLayout->addLayout(dateLayout, 1);
-    datePriorityLayout->addLayout(priorityLayout, 1);
-    layout->addLayout(datePriorityLayout);
+    dateTimePriorityLayout->addLayout(dateLayout, 1);
+    dateTimePriorityLayout->addLayout(timeLayout, 1);
+    dateTimePriorityLayout->addLayout(priorityLayout, 1);
+    layout->addLayout(dateTimePriorityLayout);
+
+    QHBoxLayout *studyDurationLayout = new QHBoxLayout;
+    studyDurationLayout->addWidget(new QLabel("Study Duration"));
+    studyDurationLayout->addWidget(studyDurationPresetBox, 1);
+    studyDurationLayout->addWidget(customDurationSpin, 1);
+    layout->addLayout(studyDurationLayout);
+
+    struct StagedAttachment
+    {
+        QString sourcePath;
+        QString fileName;
+    };
+
+    QVector<TaskAttachment> remainingAttachments = existingTask
+        ? existingTask->attachments
+        : QVector<TaskAttachment>();
+    QVector<TaskAttachment> removedAttachments;
+    QVector<StagedAttachment> stagedAttachments;
+
+    layout->addWidget(new QLabel("Attachments"));
+    QPushButton *addAttachmentsButton = new QPushButton("Add Attachments");
+    layout->addWidget(addAttachmentsButton);
+
+    QScrollArea *attachmentScroll = new QScrollArea;
+    attachmentScroll->setWidgetResizable(true);
+    attachmentScroll->setMaximumHeight(150);
+    QWidget *attachmentList = new QWidget;
+    QVBoxLayout *attachmentListLayout = new QVBoxLayout(attachmentList);
+    attachmentListLayout->setContentsMargins(0, 0, 0, 0);
+    attachmentListLayout->setSpacing(4);
+    attachmentScroll->setWidget(attachmentList);
+    layout->addWidget(attachmentScroll);
+
+    std::function<void()> refreshAttachmentList;
+    refreshAttachmentList = [&]() {
+        while (attachmentListLayout->count() > 0) {
+            QLayoutItem *item = attachmentListLayout->takeAt(0);
+            if (item->widget())
+                item->widget()->deleteLater();
+            delete item;
+        }
+
+        if (remainingAttachments.isEmpty() && stagedAttachments.isEmpty()) {
+            QLabel *emptyLabel = new QLabel("No attachments selected.");
+            emptyLabel->setStyleSheet("color: #777777;");
+            attachmentListLayout->addWidget(emptyLabel);
+        }
+
+        for (const TaskAttachment &attachment : remainingAttachments) {
+            QWidget *row = new QWidget;
+            QHBoxLayout *rowLayout = new QHBoxLayout(row);
+            rowLayout->setContentsMargins(4, 2, 4, 2);
+
+            const QString absolutePath = attachmentAbsolutePath(attachment.relativePath);
+            const bool missing = absolutePath.isEmpty() || !QFileInfo::exists(absolutePath);
+            QLabel *nameLabel = new QLabel(attachment.fileName + (missing ? " (missing)" : QString()));
+            nameLabel->setWordWrap(true);
+
+            QPushButton *openButton = new QPushButton("Open");
+            QPushButton *removeButton = new QPushButton("Remove");
+
+            openButton->setMinimumWidth(70);
+            removeButton->setMinimumWidth(70);
+
+            rowLayout->addWidget(nameLabel, 1);
+            rowLayout->addWidget(openButton);
+            rowLayout->addWidget(removeButton);
+            attachmentListLayout->addWidget(row);
+
+            connect(openButton, &QPushButton::clicked, this, [=]() {
+                const QString openPath = attachmentAbsolutePath(attachment.relativePath);
+                if (openPath.isEmpty() || !QFileInfo::exists(openPath)) {
+                    QMessageBox::warning(this, "Attachment Missing",
+                                         "The attachment could not be found:\n" + attachment.fileName);
+                    return;
+                }
+
+                if (!QDesktopServices::openUrl(QUrl::fromLocalFile(openPath))) {
+                    QMessageBox::warning(this, "Attachment Could Not Be Opened",
+                                         "No compatible application could open:\n" + attachment.fileName);
+                }
+            });
+
+            connect(removeButton, &QPushButton::clicked, this, [&, attachment]() {
+                for (int i = 0; i < remainingAttachments.size(); ++i) {
+                    if (remainingAttachments[i].id == attachment.id) {
+                        removedAttachments.append(remainingAttachments[i]);
+                        remainingAttachments.removeAt(i);
+                        break;
+                    }
+                }
+                refreshAttachmentList();
+            });
+        }
+
+        for (int stagedIndex = 0; stagedIndex < stagedAttachments.size(); ++stagedIndex) {
+            const StagedAttachment staged = stagedAttachments[stagedIndex];
+
+            QWidget *row = new QWidget;
+            QHBoxLayout *rowLayout = new QHBoxLayout(row);
+            rowLayout->setContentsMargins(4, 2, 4, 2);
+
+            QLabel *nameLabel = new QLabel(staged.fileName);
+            nameLabel->setWordWrap(true);
+            QPushButton *removeButton = new QPushButton("Remove");
+            removeButton->setMinimumWidth(70);
+
+            rowLayout->addWidget(nameLabel, 1);
+            rowLayout->addWidget(removeButton);
+            attachmentListLayout->addWidget(row);
+
+            connect(removeButton, &QPushButton::clicked, this, [&, stagedIndex]() {
+                if (stagedIndex >= 0 && stagedIndex < stagedAttachments.size())
+                    stagedAttachments.removeAt(stagedIndex);
+                refreshAttachmentList();
+            });
+        }
+
+        attachmentListLayout->addStretch();
+    };
+
+    connect(addAttachmentsButton, &QPushButton::clicked, this, [=, &dialog, &stagedAttachments]() {
+        const QStringList selectedFiles = QFileDialog::getOpenFileNames(
+            &dialog,
+            "Select PDF or PNG Attachments",
+            QString(),
+            "Supported files (*.pdf *.PDF *.png *.PNG);;PDF files (*.pdf *.PDF);;PNG files (*.png *.PNG)");
+
+        for (const QString &selectedFile : selectedFiles) {
+            if (!isSupportedAttachmentType(selectedFile)) {
+                QMessageBox::warning(&dialog, "Unsupported Attachment",
+                                     "Only valid PDF and PNG files can be attached:\n" +
+                                     QFileInfo(selectedFile).fileName());
+                continue;
+            }
+
+            StagedAttachment staged;
+            staged.sourcePath = selectedFile;
+            staged.fileName = QFileInfo(selectedFile).fileName();
+            stagedAttachments.append(staged);
+        }
+
+        refreshAttachmentList();
+    });
+
+    refreshAttachmentList();
 
     QDialogButtonBox *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel);
     layout->addWidget(buttons);
@@ -766,19 +1231,250 @@ void MainWindow::showTaskDialog(Task *existingTask)
         return;
     }
 
+    const bool customDuration = studyDurationPresetBox->currentData().toInt() == 0;
+    const int durationMinutes = customDuration
+        ? customDurationSpin->value()
+        : studyDurationPresetBox->currentData().toInt();
+
+    if (durationMinutes < 1 || durationMinutes > 180) {
+        QMessageBox::warning(this, "Invalid Study Duration",
+                             "Study duration must be between 1 and 180 minutes.");
+        return;
+    }
+
     Task task;
     task.id = existingTask ? existingTask->id : QUuid::createUuid().toString(QUuid::WithoutBraces);
     task.title = title;
     task.description = descriptionEdit->toPlainText().trimmed();
-    task.dueDate = dueDateEdit->date();
+    task.dueDate = dueDateEdit->date() == dueDateEdit->minimumDate()
+        ? QDate()
+        : dueDateEdit->date();
+    task.dueTime = dueTimeCheck->isChecked() ? dueTimeEdit->time() : QTime();
+    task.studyDurationPreset = customDuration ? "custom" : QString::number(durationMinutes);
+    task.studyDurationSeconds = durationMinutes * 60;
     task.priority = priorityBox->currentText();
     task.completed = existingTask ? existingTask->completed : false;
+    task.attachments = remainingAttachments;
 
-    if (existingTask)
-        taskStore.updateTask(task);
-    else
-        taskStore.addTask(task);
+    QVector<TaskAttachment> newlyCopiedAttachments;
+    for (const StagedAttachment &staged : stagedAttachments) {
+        TaskAttachment attachment;
+        if (!copyAttachmentToStorage(staged.sourcePath, task.id, attachment)) {
+            for (const TaskAttachment &copied : newlyCopiedAttachments)
+                removeAttachmentFile(copied);
+
+            QMessageBox::warning(this, "Attachment Copy Failed",
+                                 "The attachment could not be copied safely:\n" + staged.fileName);
+            return;
+        }
+        newlyCopiedAttachments.append(attachment);
+    }
+    task.attachments.append(newlyCopiedAttachments);
+
+    const bool saved = existingTask
+        ? taskStore.updateTask(task)
+        : taskStore.addTask(task);
+
+    if (!saved) {
+        for (const TaskAttachment &copied : newlyCopiedAttachments)
+            removeAttachmentFile(copied);
+
+        QMessageBox::warning(this, "Task Not Saved",
+                             "The task could not be saved. Please check available storage and try again.");
+        return;
+    }
+
+    if (existingTask) {
+        for (const TaskAttachment &removed : removedAttachments)
+            removeAttachmentFile(removed);
+    }
 
     refreshTaskCards();
+    refreshTimerTaskChoices();
     updateDashboardStats();
+}
+
+void MainWindow::refreshTimerTaskChoices()
+{
+    if (!timerTaskCombo)
+        return;
+
+    const QString selectedTaskId = timerTaskCombo->currentData().toString();
+    timerTaskCombo->blockSignals(true);
+    timerTaskCombo->clear();
+    timerTaskCombo->addItem("No task", QString());
+
+    for (const Task &task : taskStore.tasks()) {
+        if (!task.completed)
+            timerTaskCombo->addItem(task.title, task.id);
+    }
+
+    int selectedIndex = timerTaskCombo->findData(selectedTaskId);
+    if (selectedIndex >= 0)
+        timerTaskCombo->setCurrentIndex(selectedIndex);
+    else
+        timerTaskCombo->setCurrentIndex(0);
+
+    timerTaskCombo->blockSignals(false);
+
+    if (!timer->isActive() && activeSessionStartTime.isNull())
+        loadSelectedTaskDuration();
+}
+
+void MainWindow::loadSelectedTaskDuration()
+{
+    const QString taskId = timerTaskCombo->currentData().toString();
+
+    timerDurationCombo->blockSignals(true);
+
+    for (int i = timerDurationCombo->count() - 1; i >= 0; --i) {
+        if (timerDurationCombo->itemData(i, Qt::UserRole + 1).toBool())
+            timerDurationCombo->removeItem(i);
+    }
+
+    if (taskId.isEmpty()) {
+        int index = timerDurationCombo->findData(previouslySelectedGlobalTimerDurationSeconds);
+        if (index < 0)
+            index = timerDurationCombo->findData(25 * 60);
+        if (index >= 0) {
+            timerDurationCombo->setCurrentIndex(index);
+            remainingMilliseconds = static_cast<qint64>(
+                timerDurationCombo->itemData(index).toInt()) * 1000;
+        }
+        timerDurationCombo->blockSignals(false);
+        updateTimerDisplay();
+        return;
+    }
+
+    for (const Task &task : taskStore.tasks()) {
+        if (task.id == taskId) {
+            const int duration = task.studyDurationSeconds;
+            if (duration >= 60 && duration <= 180 * 60) {
+                int index = timerDurationCombo->findData(duration);
+                if (index < 0) {
+                    timerDurationCombo->addItem(
+                        QString("%1 minute%2 (task)")
+                            .arg(duration / 60)
+                            .arg(duration == 60 ? "" : "s"),
+                        duration);
+                    index = timerDurationCombo->count() - 1;
+                    timerDurationCombo->setItemData(index, true, Qt::UserRole + 1);
+                }
+
+                timerDurationCombo->setCurrentIndex(index);
+                remainingMilliseconds = static_cast<qint64>(duration) * 1000;
+            }
+            break;
+        }
+    }
+
+    timerDurationCombo->blockSignals(false);
+    updateTimerDisplay();
+}
+
+// ================= UNSAVED SESSION RECOVERY =================
+
+void MainWindow::clearUnsavedSessionAfterSuccess()
+{
+    unsavedCompletedSessionPending = false;
+    unsavedCompletedSession = StudySession();
+    activeSessionStartTime = QDateTime();
+    sessionEndTime = QDateTime();
+    timer->stop();
+
+    activeTimerTaskId.clear();
+    activeTimerTaskTitle.clear();
+    activeTimerSubjectId.clear();
+    activeTimerSubjectName.clear();
+
+    remainingMilliseconds = 0;
+    timerDurationCombo->setEnabled(true);
+    timerTaskCombo->setEnabled(true);
+    timerSubjectCombo->setEnabled(true);
+    timerLabel->setText("Time's Up!");
+
+    updateDashboardStats();
+    if (studyReportPage)
+        studyReportPage->refresh();
+}
+
+bool MainWindow::retryUnsavedCompletedSession()
+{
+    if (!unsavedCompletedSessionPending)
+        return true;
+
+    if (!studySessionStore.addSession(unsavedCompletedSession))
+        return false;
+
+    clearUnsavedSessionAfterSuccess();
+    return true;
+}
+
+void MainWindow::showUnsavedSessionRecovery(const QString &requestedAction)
+{
+    if (!unsavedCompletedSessionPending)
+        return;
+
+    while (unsavedCompletedSessionPending) {
+        QMessageBox recovery(this);
+        recovery.setIcon(QMessageBox::Warning);
+        recovery.setWindowTitle("Completed Session Not Saved");
+        recovery.setText("The completed study session could not be saved.");
+        recovery.setInformativeText(
+            "Choose Retry Save to try again, Discard to explicitly remove this unsaved session, "
+            "or Cancel to keep it pending. The application will not start another session until this is resolved.");
+        recovery.setStandardButtons(QMessageBox::Retry | QMessageBox::Discard | QMessageBox::Cancel);
+        recovery.setDefaultButton(QMessageBox::Retry);
+
+        const int choice = recovery.exec();
+        if (choice == QMessageBox::Retry) {
+            if (retryUnsavedCompletedSession()) {
+                if (requestedAction == "reset the timer")
+                    resetTimer();
+                return;
+            }
+
+            QMessageBox::warning(this, "Save Still Failed",
+                                 "The completed session could not be saved again. It remains pending and will not be duplicated by retry.");
+            // Loop repeats to show the recovery dialog again; no nested dialogs are created.
+            continue;
+        }
+
+        if (choice == QMessageBox::Discard) {
+            QMessageBox confirmation(this);
+            confirmation.setIcon(QMessageBox::Warning);
+            confirmation.setWindowTitle("Discard Unsaved Session");
+            confirmation.setText("Discard the completed study session permanently?");
+            confirmation.setInformativeText("This session has not been saved and cannot be recovered after discarding.");
+            confirmation.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+            confirmation.setDefaultButton(QMessageBox::No);
+
+            if (confirmation.exec() == QMessageBox::Yes) {
+                unsavedCompletedSessionPending = false;
+                unsavedCompletedSession = StudySession();
+                activeSessionStartTime = QDateTime();
+                sessionEndTime = QDateTime();
+                timer->stop();
+
+                activeTimerTaskId.clear();
+                activeTimerTaskTitle.clear();
+                activeTimerSubjectId.clear();
+                activeTimerSubjectName.clear();
+
+                activeSessionDurationSeconds = timerDurationCombo->currentData().toInt();
+                if (activeSessionDurationSeconds <= 0)
+                    activeSessionDurationSeconds = previouslySelectedGlobalTimerDurationSeconds;
+                remainingMilliseconds = static_cast<qint64>(activeSessionDurationSeconds) * 1000;
+
+                timerDurationCombo->setEnabled(true);
+                timerTaskCombo->setEnabled(true);
+                timerSubjectCombo->setEnabled(true);
+                updateTimerDisplay();
+            }
+            return;
+        }
+
+        // Cancel: leave the unsaved session pending and exit without nesting dialogs.
+        return;
+    }
 }
